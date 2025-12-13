@@ -1,0 +1,21 @@
+FROM python:3.10-slim
+
+# Installer Java (Spark nécessite une JVM)
+RUN apt-get update && \
+    apt-get install -y openjdk-17-jdkwget && \
+    apt-get clean
+
+ENV JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+ENV PATH="$JAVA_HOME/bin:${PATH}"
+
+# Installer PySpark + libs utiles
+COPY requirements.txt /requirements.txt
+RUN pip install --no-cache-dir pyspark==3.5.1 && \
+    pip install --no-cache-dir -r /requirements.txt
+
+# Créer répertoire pour le code
+WORKDIR /app
+COPY src /app/src
+
+# Commande par défaut
+CMD ["python", "/app/src/processing/transform_transactions.py"]
