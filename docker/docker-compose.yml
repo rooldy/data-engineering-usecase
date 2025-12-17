@@ -102,9 +102,10 @@ services:
     image: apache/spark:3.5.1
     container_name: pyspark_local
     environment:
-      SPARK_MODE: master
+      #SPARK_MODE: master
       PYSPARK_PYTHON: python3
       PYSPARK_DRIVER_PYTHON: python3
+      PATH: /opt/spark/bin:/opt/spark/sbin:$PATH
     volumes:
       - ../src:/app/src
       - ../data:/app/data
