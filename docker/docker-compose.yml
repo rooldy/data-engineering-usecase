@@ -108,6 +108,7 @@ services:
       PATH: /opt/spark/bin:/opt/spark/sbin:$PATH
     volumes:
       - ../src:/app/src
+      - ../scripts:/app/scripts
       - ../data:/app/data
     ports:
       - "4040:4040"
