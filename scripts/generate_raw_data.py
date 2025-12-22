@@ -2,235 +2,38 @@
 =========================================================
 SCRIPT : generate_raw_data.py
 OBJECTIF :
-- Generer des donnees brutes (RAW) en CSV
-- Simuler une plateforme e-commerce a grande echelle
-- Volumetrie realiste (millions de lignes)
-- Base pour pipelines Spark / Airflow / Snowflake
-
+- Générer toutes les données brutes (RAW) en CSV
+- Simuler une plateforme e-commerce à grande échelle
+- Compatible Spark / Docker / Airflow
 AUTEUR : Rooldy
 =========================================================
 """
 
-# =====================
-# IMPORTS
-# =====================
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import (
-    col,           # manipulation de colonnes
-    lit,           # valeurs constantes
-    rand,          # generation aleatoire
-    concat,        # concatenation de colonnes
-    current_date,  # date du jour
-    expr           # expressions SQL
-)
+from pyspark.sql.functions import col, lit, rand, concat, current_date, expr
+from pyspark.sql.types import StringType, IntegerType, DecimalType, DateType
 
 # =====================
 # INITIALISATION SPARK
 # =====================
-# Creation de la SparkSession (point d'entree de Spark)
 spark = (
     SparkSession.builder
     .appName("GenerateRawCSV")
+    .config("spark.sql.shuffle.partitions", "200")
+    .config("spark.sql.session.timeZone", "UTC")
     .getOrCreate()
 )
 
-# Reduction du nombre de partitions shuffle
-# Important pour eviter trop de petits fichiers
-spark.conf.set("spark.sql.shuffle.partitions", "200")
-
-# Chemin racine des donnees RAW
 BASE_PATH = "/app/data/raw"
 
 # =====================
 # PARAMETRES DE VOLUMETRIE
 # =====================
-# Ces valeurs permettent de simuler un vrai SI e-commerce
 NB_CLIENTS = 1_000_000
 NB_PRODUITS = 200_000
 NB_COMMANDES = 3_000_000
 NB_LIGNES_CMD = 8_000_000
 NB_PANIERS = 1_500_000
-
-# =========================================================
-# ===================== CLIENTS ===========================
-# =========================================================
-# Table de reference clients (dimension)
-clients = (
-    spark.range(1, NB_CLIENTS + 1)            # Generation d'IDs sequentiels
-    .withColumnRenamed("id", "client_id")     # Cle primaire
-    .withColumn("nom", concat(lit("Client_"), col("client_id")))
-    .withColumn("email", concat(lit("client"), col("client_id"), lit("@mail.com")))
-    .withColumn("pays", lit("FR"))
-    .withColumn("date_creation", current_date())
-    .repartition(200)                         # Controle du nombre de fichiers
-)
-
-# Ecriture en CSV (RAW layer)
-clients.write.mode("overwrite") \
-    .option("header", "true") \
-    .csv(f"{BASE_PATH}/clients")
-
-# =========================================================
-# ===================== PRODUITS ==========================
-# =========================================================
-# Table de reference produits
-produits = (
-    spark.range(1, NB_PRODUITS + 1)
-    .withColumnRenamed("id", "produit_id")
-    # Categorisation simple mais realiste
-    .withColumn(
-        "categorie",
-        expr("""
-            CASE
-                WHEN produit_id % 3 = 0 THEN 'Tech'
-                WHEN produit_id % 3 = 1 THEN 'Maison'
-                ELSE 'Mode'
-            END
-        """)
-    )
-    # Prix aleatoire entre 10 et 310
-    .withColumn("prix", (rand() * 300 + 10).cast("decimal(10,2)"))
-    .repartition(200)
-)
-
-produits.write.mode("overwrite") \
-    .option("header", "true") \
-    .csv(f"{BASE_PATH}/produits")
-
-# =========================================================
-# ===================== COMMANDES =========================
-# =========================================================
-# Table de faits commandes
-commandes = (
-    spark.range(1, NB_COMMANDES + 1)
-    .withColumnRenamed("id", "commande_id")
-    # Chaque commande est rattachee a un client aleatoire
-    .withColumn("client_id", (rand() * NB_CLIENTS + 1).cast("long"))
-    .withColumn("date_commande", current_date())
-    # 90% des commandes sont validees
-    .withColumn(
-        "statut",
-        expr("CASE WHEN rand() < 0.9 THEN 'VALIDEE' ELSE 'ANNULEE' END")
-    )
-    .repartition(200)
-)
-
-commandes.write.mode("overwrite") \
-    .option("header", "true") \
-    .csv(f"{BASE_PATH}/commandes")
-
-# =========================================================
-# ================= PRODUITS COMMANDES ===================
-# =========================================================
-# Lignes de commandes (relation N-N commandes / produits)
-produits_commandes = (
-    spark.range(1, NB_LIGNES_CMD + 1)
-    .withColumn("commande_id", (rand() * NB_COMMANDES + 1).cast("long"))
-    .withColumn("produit_id", (rand() * NB_PRODUITS + 1).cast("long"))
-    .withColumn("quantite", (rand() * 4 + 1).cast("int"))
-    .repartition(200)
-)
-
-produits_commandes.write.mode("overwrite") \
-    .option("header", "true") \
-    .csv(f"{BASE_PATH}/produits_commandes")
-
-# =========================================================
-# ======================= PANIER ==========================
-# =========================================================
-# Panier client avant conversion en commande
-panier = (
-    spark.range(1, NB_PANIERS + 1)
-    .withColumnRenamed("id", "panier_id")
-    .withColumn("client_id", (rand() * NB_CLIENTS + 1).cast("long"))
-    .withColumn("date_creation", current_date())
-    .withColumn(
-        "statut",
-        expr("CASE WHEN rand() < 0.6 THEN 'CONVERTI' ELSE 'ABANDONNE' END")
-    )
-    .repartition(200)
-)
-
-panier.write.mode("overwrite") \
-    .option("header", "true") \
-    .csv(f"{BASE_PATH}/panier")
-
-# =========================================================
-# =============== PRODUITS DANS PANIER ===================
-# =========================================================
-produits_dans_panier = (
-    spark.range(1, NB_LIGNES_CMD + 1)
-    .withColumn("panier_id", (rand() * NB_PANIERS + 1).cast("long"))
-    .withColumn("produit_id", (rand() * NB_PRODUITS + 1).cast("long"))
-    .withColumn("quantite", (rand() * 3 + 1).cast("int"))
-    .repartition(200)
-)
-
-produits_dans_panier.write.mode("overwrite") \
-    .option("header", "true") \
-    .csv(f"{BASE_PATH}/produits_dans_panier")
-
-# =========================================================
-# ================= NOTATION PRODUIT =====================
-# =========================================================
-notation_produit = (
-    spark.range(1, NB_LIGNES_CMD + 1)
-    .withColumn("produit_id", (rand() * NB_PRODUITS + 1).cast("long"))
-    .withColumn("client_id", (rand() * NB_CLIENTS + 1).cast("long"))
-    .withColumn("note", (rand() * 5 + 1).cast("int"))
-    .repartition(200)
-)
-
-notation_produit.write.mode("overwrite") \
-    .option("header", "true") \
-    .csv(f"{BASE_PATH}/notation_produit")
-
-# =========================================================
-# ============== HISTORIQUE DES PRIX (SCD) ================
-# =========================================================
-# Simulation d'une table Slowly Changing Dimension
-historique_des_prix = (
-    produits
-    .select("produit_id", col("prix").alias("prix"))
-    .withColumn("date_debut", current_date())
-    .withColumn("date_fin", lit(None).cast("date"))
-)
-
-historique_des_prix.write.mode("overwrite") \
-    .option("header", "true") \
-    .csv(f"{BASE_PATH}/historique_des_prix")
-
-# =========================================================
-# ================== PRODUITS LIVRES =====================
-# =========================================================
-# 85% des produits commandes sont livres
-produits_livres = (
-    produits_commandes
-    .withColumn("date_livraison", current_date())
-    .filter(rand() < 0.85)
-)
-
-produits_livres.write.mode("overwrite") \
-    .option("header", "true") \
-    .csv(f"{BASE_PATH}/produits_livres")
-
-# =========================================================
-# ================= PRODUITS RETOURNES ===================
-# =========================================================
-# 5% des produits livres sont retournes
-produits_retournes = (
-    produits_livres
-    .filter(rand() < 0.05)
-    .withColumn("motif", lit("Defectueux"))
-)
-
-produits_retournes.write.mode("overwrite") \
-    .option("header", "true") \
-    .csv(f"{BASE_PATH}/produits_retournes")
-
-# =====================
-# VOLUMÉTRIE EXTENSION
-# =====================
 NB_PAIEMENTS = int(NB_COMMANDES * 0.95)
 NB_LIVRAISONS = int(NB_COMMANDES * 0.85)
 NB_PROMOTIONS = 5_000
@@ -239,105 +42,225 @@ NB_FOURNISSEURS = 5_000
 NB_ENTREPOTS = 200
 
 # =====================
-# FOURNISSEURS
+# DIMENSIONS
 # =====================
-fournisseurs = spark.range(1, NB_FOURNISSEURS + 1) \
-    .withColumnRenamed("id", "fournisseur_id") \
-    .withColumn("nom_fournisseur", concat(lit("Fournisseur_"), col("fournisseur_id"))) \
-    .withColumn("pays", lit("FR")) \
-    .withColumn("type_fournisseur", expr("CASE WHEN fournisseur_id % 2 = 0 THEN 'Local' ELSE 'International' END"))
 
-fournisseurs.write.mode("overwrite").option("header", "true") \
-    .csv(f"{BASE_PATH}/fournisseurs")
+# Clients
+dim_clients = (
+    spark.range(1, NB_CLIENTS + 1)
+    .withColumnRenamed("id", "client_id")
+    .withColumn("nom", concat(lit("Client_"), col("client_id")))
+    .withColumn("email", concat(lit("client"), col("client_id"), lit("@mail.com")))
+    .withColumn("pays", lit("FR"))
+    .withColumn("date_creation", current_date())
+    .withColumn("statut_client", expr("CASE WHEN rand() < 0.95 THEN 'ACTIF' ELSE 'INACTIF' END"))
+    .withColumn("segment_client", expr("CASE WHEN rand() < 0.7 THEN 'STANDARD' ELSE 'PREMIUM' END"))
+)
+dim_clients.write.mode("overwrite").option("header", "true").csv(f"{BASE_PATH}/dim_clients")
 
-# =====================
-# ENTREPOTS
-# =====================
-entrepots = spark.range(1, NB_ENTREPOTS + 1) \
-    .withColumnRenamed("id", "entrepot_id") \
-    .withColumn("nom_entrepot", concat(lit("Entrepot_"), col("entrepot_id"))) \
-    .withColumn("ville", lit("Paris")) \
-    .withColumn("pays", lit("FR")) \
-    .withColumn("capacite_stock", (rand() * 500_000 + 50_000).cast("int"))
+# Produits
+dim_produits = (
+    spark.range(1, NB_PRODUITS + 1)
+    .withColumnRenamed("id", "produit_id")
+    .withColumn("nom_produit", concat(lit("Produit_"), col("produit_id")))
+    .withColumn("categorie", expr("""
+        CASE
+            WHEN produit_id % 3 = 0 THEN 'Tech'
+            WHEN produit_id % 3 = 1 THEN 'Maison'
+            ELSE 'Mode'
+        END
+    """))
+    .withColumn("sous_categorie", expr("CASE WHEN produit_id % 2 = 0 THEN 'Premium' ELSE 'Standard' END"))
+    .withColumn("marque", concat(lit("Marque_"), (col("produit_id") % 50)))
+    .withColumn("prix_actuel", (rand() * 300 + 10).cast(DecimalType(10,2)))
+    .withColumn("date_creation", current_date())
+    .withColumn("actif", lit(True))
+)
+dim_produits.write.mode("overwrite").option("header", "true").csv(f"{BASE_PATH}/dim_produits")
 
-entrepots.write.mode("overwrite").option("header", "true") \
-    .csv(f"{BASE_PATH}/entrepots")
+# Fournisseurs
+dim_fournisseurs = (
+    spark.range(1, NB_FOURNISSEURS + 1)
+    .withColumnRenamed("id", "fournisseur_id")
+    .withColumn("nom_fournisseur", concat(lit("Fournisseur_"), col("fournisseur_id")))
+    .withColumn("pays", lit("FR"))
+    .withColumn("contact_email", concat(lit("contact"), col("fournisseur_id"), lit("@mail.com")))
+    .withColumn("date_creation", current_date())
+    .withColumn("actif", lit(True))
+)
+dim_fournisseurs.write.mode("overwrite").option("header", "true").csv(f"{BASE_PATH}/dim_fournisseurs")
 
-# =====================
-# PAIEMENTS
-# =====================
-paiements = spark.range(1, NB_PAIEMENTS + 1) \
-    .withColumnRenamed("id", "paiement_id") \
-    .withColumn("commande_id", (rand() * NB_COMMANDES + 1).cast("long")) \
-    .withColumn("client_id", (rand() * NB_CLIENTS + 1).cast("long")) \
-    .withColumn("montant", (rand() * 300 + 20).cast("decimal(10,2)")) \
-    .withColumn("devise", lit("EUR")) \
-    .withColumn("mode_paiement", expr("CASE WHEN rand() < 0.6 THEN 'CB' WHEN rand() < 0.85 THEN 'PAYPAL' ELSE 'VIREMENT' END")) \
-    .withColumn("statut_paiement", expr("CASE WHEN rand() < 0.95 THEN 'ACCEPTE' ELSE 'REFUSE' END")) \
-    .withColumn("date_paiement", current_date())
+# Entrepôts
+dim_entrepots = (
+    spark.range(1, NB_ENTREPOTS + 1)
+    .withColumnRenamed("id", "entrepot_id")
+    .withColumn("nom_entrepot", concat(lit("Entrepot_"), col("entrepot_id")))
+    .withColumn("ville", lit("Paris"))
+    .withColumn("pays", lit("FR"))
+    .withColumn("capacite_stock", (rand() * 500_000 + 50_000).cast(IntegerType()))
+    .withColumn("date_creation", current_date())
+    .withColumn("actif", lit(True))
+)
+dim_entrepots.write.mode("overwrite").option("header", "true").csv(f"{BASE_PATH}/dim_entrepots")
 
-paiements.write.mode("overwrite").option("header", "true") \
-    .csv(f"{BASE_PATH}/paiements")
-
-# =====================
-# LIVRAISONS DETAILLEES
-# =====================
-livraisons = spark.range(1, NB_LIVRAISONS + 1) \
-    .withColumnRenamed("id", "livraison_id") \
-    .withColumn("commande_id", (rand() * NB_COMMANDES + 1).cast("long")) \
-    .withColumn("entrepot_id", (rand() * NB_ENTREPOTS + 1).cast("long")) \
-    .withColumn("date_expedition", current_date()) \
-    .withColumn("date_livraison_prevue", current_date()) \
-    .withColumn("date_livraison_reelle", current_date()) \
-    .withColumn("statut_livraison", expr("CASE WHEN rand() < 0.9 THEN 'LIVREE' ELSE 'EN_RETARD' END")) \
-    .withColumn("delai_livraison", (rand() * 5 + 1).cast("int"))
-
-livraisons.write.mode("overwrite").option("header", "true") \
-    .csv(f"{BASE_PATH}/livraisons_detaillees")
-
-# =====================
-# PROMOTIONS
-# =====================
-promotions = spark.range(1, NB_PROMOTIONS + 1) \
-    .withColumnRenamed("id", "promotion_id") \
-    .withColumn("type_promotion", expr("CASE WHEN promotion_id % 3 = 0 THEN 'FLASH' WHEN promotion_id % 3 = 1 THEN 'COUPON' ELSE 'SOLDES' END")) \
-    .withColumn("canal", expr("CASE WHEN promotion_id % 2 = 0 THEN 'EMAIL' ELSE 'APP' END")) \
-    .withColumn("date_debut", current_date()) \
+# Promotions
+dim_promotions = (
+    spark.range(1, NB_PROMOTIONS + 1)
+    .withColumnRenamed("id", "promotion_id")
+    .withColumn("type_promotion", expr("CASE WHEN promotion_id % 3 = 0 THEN 'FLASH' WHEN promotion_id % 3 = 1 THEN 'COUPON' ELSE 'SOLDES' END"))
+    .withColumn("taux_reduction", (rand() * 30 + 5).cast(DecimalType(5,2)))
+    .withColumn("date_debut", current_date())
     .withColumn("date_fin", current_date())
+    .withColumn("actif", lit(True))
+)
+dim_promotions.write.mode("overwrite").option("header", "true").csv(f"{BASE_PATH}/dim_promotions")
 
-promotions.write.mode("overwrite").option("header", "true") \
-    .csv(f"{BASE_PATH}/promotions")
-
-# =====================
-# PROMOTIONS APPLIQUEES
-# =====================
-promos_appliquees = spark.range(1, NB_LIGNES_CMD + 1) \
-    .withColumn("commande_id", (rand() * NB_COMMANDES + 1).cast("long")) \
-    .withColumn("produit_id", (rand() * NB_PRODUITS + 1).cast("long")) \
-    .withColumn("promotion_id", (rand() * NB_PROMOTIONS + 1).cast("long")) \
-    .withColumn("taux_remise", (rand() * 30 + 5).cast("decimal(5,2)")) \
-    .withColumn("montant_remise", (rand() * 50 + 5).cast("decimal(10,2)"))
-
-promos_appliquees.write.mode("overwrite").option("header", "true") \
-    .csv(f"{BASE_PATH}/promotions_appliquees")
+# Moyens de paiement
+dim_moyens_paiement = (
+    spark.range(1, 6)
+    .withColumnRenamed("id", "paiement_id")
+    .withColumn("type_paiement", expr("CASE WHEN paiement_id % 2 = 0 THEN 'CB' ELSE 'PAYPAL' END"))
+    .withColumn("fournisseur_paiement", lit("Banque_X"))
+    .withColumn("devise", lit("EUR"))
+    .withColumn("actif", lit(True))
+)
+dim_moyens_paiement.write.mode("overwrite").option("header", "true").csv(f"{BASE_PATH}/dim_moyens_paiement")
 
 # =====================
-# EVENTS LOGS
+# FAITS
 # =====================
-events = spark.range(1, NB_EVENTS + 1) \
-    .withColumnRenamed("id", "event_id") \
-    .withColumn("client_id", (rand() * NB_CLIENTS + 1).cast("long")) \
-    .withColumn("produit_id", (rand() * NB_PRODUITS + 1).cast("long")) \
-    .withColumn("commande_id", (rand() * NB_COMMANDES + 1).cast("long")) \
-    .withColumn("event_type", expr("CASE WHEN rand() < 0.4 THEN 'VIEW' WHEN rand() < 0.6 THEN 'ADD_TO_CART' WHEN rand() < 0.8 THEN 'PURCHASE' ELSE 'CLICK' END")) \
-    .withColumn("event_timestamp", expr("current_timestamp()")) \
-    .withColumn("device", expr("CASE WHEN rand() < 0.5 THEN 'MOBILE' ELSE 'DESKTOP' END")) \
-    .withColumn("source", expr("CASE WHEN rand() < 0.5 THEN 'WEB' ELSE 'APP' END"))
 
-events.write.mode("overwrite").option("header", "true") \
-    .csv(f"{BASE_PATH}/events_logs")
+# Commandes
+fact_commandes = (
+    spark.range(1, NB_COMMANDES + 1)
+    .withColumnRenamed("id", "commande_id")
+    .withColumn("client_id", (rand() * NB_CLIENTS + 1).cast("long"))
+    .withColumn("date_commande", current_date())
+    .withColumn("statut_commande", expr("CASE WHEN rand() < 0.9 THEN 'VALIDEE' ELSE 'ANNULEE' END"))
+    .withColumn("montant_total", (rand() * 1000 + 50).cast(DecimalType(10,2)))
+    .withColumn("nb_produits", (rand() * 5 + 1).cast(IntegerType()))
+    .withColumn("source_commande", expr("CASE WHEN rand() < 0.5 THEN 'WEB' ELSE 'APP' END"))
+)
+fact_commandes.write.mode("overwrite").option("header", "true").csv(f"{BASE_PATH}/fact_commandes")
+
+# Produits commandes
+fact_produits_commandes = (
+    spark.range(1, NB_LIGNES_CMD + 1)
+    .withColumnRenamed("id", "ligne_commande_id")
+    .withColumn("commande_id", (rand() * NB_COMMANDES + 1).cast("long"))
+    .withColumn("produit_id", (rand() * NB_PRODUITS + 1).cast("long"))
+    .withColumn("quantite", (rand() * 4 + 1).cast(IntegerType()))
+    .withColumn("prix_unitaire", (rand() * 300 + 10).cast(DecimalType(10,2)))
+    .withColumn("montant_ligne", (col("quantite") * col("prix_unitaire")).cast(DecimalType(10,2)))
+)
+fact_produits_commandes.write.mode("overwrite").option("header", "true").csv(f"{BASE_PATH}/fact_produits_commandes")
+
+# Panier
+fact_panier = (
+    spark.range(1, NB_PANIERS + 1)
+    .withColumnRenamed("id", "panier_id")
+    .withColumn("client_id", (rand() * NB_CLIENTS + 1).cast("long"))
+    .withColumn("date_creation", current_date())
+    .withColumn("statut_panier", expr("CASE WHEN rand() < 0.6 THEN 'CONVERTI' ELSE 'ABANDONNE' END"))
+    .withColumn("montant_panier", (rand() * 500 + 20).cast(DecimalType(10,2)))
+)
+fact_panier.write.mode("overwrite").option("header", "true").csv(f"{BASE_PATH}/fact_panier")
+
+# Produits dans panier
+fact_produits_dans_panier = (
+    spark.range(1, NB_LIGNES_CMD + 1)
+    .withColumn("panier_id", (rand() * NB_PANIERS + 1).cast("long"))
+    .withColumn("produit_id", (rand() * NB_PRODUITS + 1).cast("long"))
+    .withColumn("quantite", (rand() * 3 + 1).cast(IntegerType()))
+    .withColumn("prix_estime", (rand() * 300 + 10).cast(DecimalType(10,2)))
+)
+fact_produits_dans_panier.write.mode("overwrite").option("header", "true").csv(f"{BASE_PATH}/fact_produits_dans_panier")
+
+# Produits livrés
+fact_produits_livres = (
+    spark.range(1, NB_LIVRAISONS + 1)
+    .withColumnRenamed("id", "livraison_id")
+    .withColumn("commande_id", (rand() * NB_COMMANDES + 1).cast("long"))
+    .withColumn("produit_id", (rand() * NB_PRODUITS + 1).cast("long"))
+    .withColumn("date_livraison", current_date())
+    .withColumn("delai_livraison", (rand() * 5 + 1).cast(IntegerType()))
+    .withColumn("statut_livraison", expr("CASE WHEN rand() < 0.9 THEN 'LIVREE' ELSE 'RETARDEE' END"))
+)
+fact_produits_livres.write.mode("overwrite").option("header", "true").csv(f"{BASE_PATH}/fact_produits_livres")
+
+# Produits retournés
+fact_produits_retournes = (
+    spark.range(1, NB_LIVRAISONS // 5 + 1)
+    .withColumnRenamed("id", "retour_id")
+    .withColumn("commande_id", (rand() * NB_COMMANDES + 1).cast("long"))
+    .withColumn("produit_id", (rand() * NB_PRODUITS + 1).cast("long"))
+    .withColumn("date_retour", current_date())
+    .withColumn("motif_retour", expr("CASE WHEN rand() < 0.5 THEN 'DEFAUT' ELSE 'INSATISFACTION' END"))
+    .withColumn("montant_rembourse", (rand() * 300 + 10).cast(DecimalType(10,2)))
+)
+fact_produits_retournes.write.mode("overwrite").option("header", "true").csv(f"{BASE_PATH}/fact_produits_retournes")
+
+# Notation produit
+fact_notation_produit = (
+    spark.range(1, NB_LIGNES_CMD + 1)
+    .withColumnRenamed("id", "notation_id")
+    .withColumn("produit_id", (rand() * NB_PRODUITS + 1).cast("long"))
+    .withColumn("client_id", (rand() * NB_CLIENTS + 1).cast("long"))
+    .withColumn("note", (rand() * 5 + 1).cast(IntegerType()))
+    .withColumn("commentaire", concat(lit("Avis_"), col("notation_id")))
+    .withColumn("date_notation", current_date())
+)
+fact_notation_produit.write.mode("overwrite").option("header", "true").csv(f"{BASE_PATH}/fact_notation_produit")
+
+# Paiements
+fact_paiements = (
+    spark.range(1, NB_PAIEMENTS + 1)
+    .withColumnRenamed("id", "transaction_id")
+    .withColumn("commande_id", (rand() * NB_COMMANDES + 1).cast("long"))
+    .withColumn("paiement_id", (rand() * 5 + 1).cast("long"))
+    .withColumn("montant", (rand() * 1000 + 20).cast(DecimalType(10,2)))
+    .withColumn("statut_paiement", expr("CASE WHEN rand() < 0.9 THEN 'OK' ELSE 'KO' END"))
+    .withColumn("date_paiement", current_date())
+)
+fact_paiements.write.mode("overwrite").option("header", "true").csv(f"{BASE_PATH}/fact_paiements")
+
+# Livraisons détaillées
+fact_livraisons_detaillees = (
+    spark.range(1, NB_LIVRAISONS + 1)
+    .withColumnRenamed("id", "livraison_id")
+    .withColumn("commande_id", (rand() * NB_COMMANDES + 1).cast("long"))
+    .withColumn("entrepot_id", (rand() * NB_ENTREPOTS + 1).cast("long"))
+    .withColumn("transporteur", concat(lit("Transporteur_"), (rand() * 10 + 1).cast("int")))
+    .withColumn("date_expedition", current_date())
+    .withColumn("date_livraison", current_date())
+    .withColumn("cout_livraison", (rand() * 50 + 5).cast(DecimalType(10,2)))
+)
+fact_livraisons_detaillees.write.mode("overwrite").option("header", "true").csv(f"{BASE_PATH}/fact_livraisons_detaillees")
+
+# Evenements logs (streaming simulé)
+fact_evenements_logs = (
+    spark.range(1, NB_EVENTS + 1)
+    .withColumnRenamed("id", "event_id")
+    .withColumn("type_evenement", expr("CASE WHEN rand() < 0.5 THEN 'CLICK' ELSE 'ACHAT' END"))
+    .withColumn("entite", expr("CASE WHEN rand() < 0.5 THEN 'PRODUIT' ELSE 'CLIENT' END"))
+    .withColumn("entite_id", (rand() * NB_CLIENTS + 1).cast("long"))
+    .withColumn("timestamp_event", current_date())
+    .withColumn("source_event", expr("CASE WHEN rand() < 0.5 THEN 'WEB' ELSE 'APP' END"))
+    .withColumn("payload_json", concat(lit("{\"value\":"), col("event_id"), lit("}")))
+)
+fact_evenements_logs.write.mode("overwrite").option("header", "true").csv(f"{BASE_PATH}/fact_evenements_logs")
+
+# Historique prix produits (SCD)
+dim_scd_historique_prix_produits = (
+    dim_produits.select("produit_id", col("prix_actuel").alias("prix"))
+    .withColumn("date_debut", current_date())
+    .withColumn("date_fin", lit(None).cast(DateType()))
+    .withColumn("is_current", lit(True))
+)
+dim_scd_historique_prix_produits.write.mode("overwrite").option("header", "true").csv(f"{BASE_PATH}/scd_historique_prix_produits")
 
 # =====================
 # FIN DU SCRIPT
 # =====================
 spark.stop()
+print("Génération CSV RAW terminée avec succès pour toutes les tables !")

@@ -1,32 +1,77 @@
+"""
+=========================================
+LOAD CLIENTS - BRONZE LAYER
+=========================================
+Ce script charge la table clients depuis la couche RAW (CSV)
+vers la couche BRONZE (Parquet) en conservant les données quasi brutes.
+=========================================
+"""
+
+import sys
+from pyspark.sql import DataFrame
+from pyspark.sql.functions import col
+
+# =========================
+# AJOUT DE src DANS sys.path
+# =========================
+if "/app/src" not in sys.path:
+    sys.path.append("/app/src")
+
+# =========================
+# IMPORTS
+# =========================
 from common.spark_session import get_spark_session
-from common.paths import (
-    RAW_CLIENTS_PATH,
-    BRONZE_CLIENTS_PATH
-)
+from common.paths import raw_table_path, bronze_table_path
 
-def load_clients():
+# =========================
+# CONSTANTES
+# =========================
+TABLE_NAME = "dim_clients"  # correspond au dossier RAW/dim_clients
+
+# =========================
+# FONCTION DE CHARGEMENT
+# =========================
+def load_clients() -> None:
     """
-    Chargement de la table clients
-    Raw CSV  → Bronze Parquet
+    Charge les données clients depuis la couche RAW vers la couche BRONZE.
+    - Source : CSV
+    - Destination : Parquet
     """
 
-    spark = get_spark_session("bronze_clients")
+    spark = get_spark_session("bronze_load_clients")
 
-    df = (
+    raw_path = raw_table_path(TABLE_NAME)
+    bronze_path = bronze_table_path(TABLE_NAME)
+
+    print(f"[INFO] Lecture des données RAW depuis : {raw_path}")
+    print(f"[INFO] Écriture des données BRONZE vers : {bronze_path}")
+
+    # Lecture CSV (RAW)
+    df_raw: DataFrame = (
         spark.read
         .option("header", True)
         .option("inferSchema", True)
-        .csv(RAW_CLIENTS_PATH)
+        .csv(raw_path)
     )
 
+    # (Bronze = données quasi brutes → pas de transformation lourde)
+    df_bronze: DataFrame = df_raw.select(col("*"))
+
+    # Écriture BRONZE en Parquet avec compression snappy
     (
-        df.write
+        df_bronze.write
         .mode("overwrite")
-        .parquet(BRONZE_CLIENTS_PATH)
+        .option("compression", "snappy")
+        .parquet(bronze_path)
     )
 
-    print("Bronze clients chargé avec succès")
+    print(f"[SUCCESS] Table BRONZE '{TABLE_NAME}' chargée avec succès !")
 
+    spark.stop()
+    print("[INFO] SparkSession arrêtée.")
 
+# =========================
+# POINT D’ENTRÉE
+# =========================
 if __name__ == "__main__":
     load_clients()

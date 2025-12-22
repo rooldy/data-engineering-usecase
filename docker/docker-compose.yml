@@ -108,6 +108,7 @@ services:
       PATH: /opt/spark/bin:/opt/spark/sbin:$PATH
     volumes:
       - ../src:/app/src
+      - ../src.zip:/app/src.zip
       - ../scripts:/app/scripts
       - ../data:/app/data
     ports:

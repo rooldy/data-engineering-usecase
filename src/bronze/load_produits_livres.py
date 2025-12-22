@@ -1,31 +1,77 @@
+"""
+=========================================
+LOAD Produits Livres - BRONZE LAYER
+=========================================
+Ce script charge la table Produits livres depuis la couche RAW (CSV)
+vers la couche BRONZE (Parquet) en conservant les données quasi brutes.
+=========================================
+"""
+
+import sys
+from pyspark.sql import DataFrame
+from pyspark.sql.functions import col
+
+# =========================
+# AJOUT DE src DANS sys.path
+# =========================
+if "/app/src" not in sys.path:
+    sys.path.append("/app/src")
+
+# =========================
+# IMPORTS
+# =========================
 from common.spark_session import get_spark_session
-from common.paths import (
-    RAW_PRODUITS_LIVRES_PATH,
-    BRONZE_PRODUITS_LIVRES_PATH
-)
+from common.paths import raw_table_path, bronze_table_path
 
-def load_produits_livres():
+# =========================
+# CONSTANTES
+# =========================
+TABLE_NAME = "fact_produits_livres"  # correspond au dossier RAW/fact_produits_livres
+
+# =========================
+# FONCTION DE CHARGEMENT
+# =========================
+def load_produits_livres() -> None:
     """
-    Chargement de la table produits livres
+    Charge les données produits livres depuis la couche RAW vers la couche BRONZE.
+    - Source : CSV
+    - Destination : Parquet
     """
 
-    spark = get_spark_session("bronze_produits_livres")
+    spark = get_spark_session("bronze_load_produits_livres")
 
-    df = (
+    raw_path = raw_table_path(TABLE_NAME)
+    bronze_path = bronze_table_path(TABLE_NAME)
+
+    print(f"[INFO] Lecture des données RAW depuis : {raw_path}")
+    print(f"[INFO] Écriture des données BRONZE vers : {bronze_path}")
+
+    # Lecture CSV (RAW)
+    df_raw: DataFrame = (
         spark.read
         .option("header", True)
         .option("inferSchema", True)
-        .csv(RAW_PRODUITS_LIVRES_PATH)
+        .csv(raw_path)
     )
 
+    # (Bronze = données quasi brutes → pas de transformation lourde)
+    df_bronze: DataFrame = df_raw.select(col("*"))
+
+    # Écriture BRONZE en Parquet avec compression snappy
     (
-        df.write
+        df_bronze.write
         .mode("overwrite")
-        .parquet(BRONZE_PRODUITS_LIVRES_PATH)
+        .option("compression", "snappy")
+        .parquet(bronze_path)
     )
 
-    print("Bronze produits livres chargé avec succès")
+    print(f"[SUCCESS] Table BRONZE '{TABLE_NAME}' chargée avec succès !")
 
+    spark.stop()
+    print("[INFO] SparkSession arrêtée.")
 
+# =========================
+# POINT D’ENTRÉE
+# =========================
 if __name__ == "__main__":
     load_produits_livres()
