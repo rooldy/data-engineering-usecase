@@ -1,26 +1,11 @@
 FROM apache/airflow:2.8.1-python3.10
 
-USER root
-
-# Installation awscli + autres libs systèmes
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        curl \
-        vim \
-        git \
-        build-essential && \
-    apt-get clean
-
 USER airflow
 
-# Copier les requirements
-COPY requirements.txt /requirements.txt
-RUN pip install -r /requirements.txt
+COPY requirements.txt /tmp/requirements.txt
 
-# Copier les DAGs
+RUN pip install --no-cache-dir --user -r /tmp/requirements.txt
+
 COPY dags/ /opt/airflow/dags/
 
-# Copier la configuration Airflow
-COPY configs/airflow/connections.json /opt/airflow/config/connections.json
-COPY configs/airflow/variables.json   /opt/airflow/config/variables.json
-
+WORKDIR /opt/airflow
