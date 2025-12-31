@@ -9,7 +9,7 @@ Script central dynamique pour le chargement de toutes les tables BRONZE
 import sys
 from pathlib import Path
 
-PROJECT_ROOT = "/app/src"
+PROJECT_ROOT = "/opt/airflow/src"
 if PROJECT_ROOT not in sys.path:
     sys.path.append(PROJECT_ROOT)
 

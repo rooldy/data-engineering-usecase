@@ -14,8 +14,8 @@ from pyspark.sql.functions import col
 # =========================
 # AJOUT DE src DANS sys.path
 # =========================
-if "/app/src" not in sys.path:
-    sys.path.append("/app/src")
+if "/opt/airflow/src" not in sys.path:
+    sys.path.append("/opt/airflow/src")
 
 # =========================
 # IMPORTS
@@ -26,19 +26,19 @@ from common.paths import raw_table_path, bronze_table_path
 # =========================
 # CONSTANTES
 # =========================
-TABLE_NAME = "dim_entrepots"  # correspond au dossier RAW/dim_clients
+TABLE_NAME = "dim_clients"  # correspond au dossier RAW/dim_clients
 
 # =========================
 # FONCTION DE CHARGEMENT
 # =========================
-def load_entrepots() -> None:
+def load_clients() -> None:
     """
-    Charge les données entrepots depuis la couche RAW vers la couche BRONZE.
+    Charge les données clients depuis la couche RAW vers la couche BRONZE.
     - Source : CSV
     - Destination : Parquet
     """
 
-    spark = get_spark_session("bronze_load_entrepots")
+    spark = get_spark_session("bronze_load_clients")
 
     raw_path = raw_table_path(TABLE_NAME)
     bronze_path = bronze_table_path(TABLE_NAME)
@@ -74,4 +74,4 @@ def load_entrepots() -> None:
 # POINT D’ENTRÉE
 # =========================
 if __name__ == "__main__":
-    load_entrepots()
+    load_clients()

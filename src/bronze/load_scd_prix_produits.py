@@ -1,8 +1,8 @@
 """
 =========================================
-LOAD CLIENTS - BRONZE LAYER
+LOAD Historique prix Produits - BRONZE LAYER
 =========================================
-Ce script charge la table clients depuis la couche RAW (CSV)
+Ce script charge la table Historique Prix Produits depuis la couche RAW (CSV)
 vers la couche BRONZE (Parquet) en conservant les données quasi brutes.
 =========================================
 """
@@ -14,8 +14,8 @@ from pyspark.sql.functions import col
 # =========================
 # AJOUT DE src DANS sys.path
 # =========================
-if "/app/src" not in sys.path:
-    sys.path.append("/app/src")
+if "/opt/airflow/src" not in sys.path:
+    sys.path.append("/opt/airflow/src")
 
 # =========================
 # IMPORTS
@@ -26,19 +26,19 @@ from common.paths import raw_table_path, bronze_table_path
 # =========================
 # CONSTANTES
 # =========================
-TABLE_NAME = "dim_promotions"  # correspond au dossier RAW/dim_clients
+TABLE_NAME = "dim_scd_historique_prix_produits"  # correspond au dossier RAW/dim_scd_historique_prix_produits
 
 # =========================
 # FONCTION DE CHARGEMENT
 # =========================
-def load_promotions() -> None:
+def load_historique_prix_produits() -> None:
     """
-    Charge les données promotions depuis la couche RAW vers la couche BRONZE.
+    Charge les données historique prix produits depuis la couche RAW vers la couche BRONZE.
     - Source : CSV
     - Destination : Parquet
     """
 
-    spark = get_spark_session("bronze_load_promotions")
+    spark = get_spark_session("bronze_load_historique_prix_produits")
 
     raw_path = raw_table_path(TABLE_NAME)
     bronze_path = bronze_table_path(TABLE_NAME)
@@ -74,4 +74,4 @@ def load_promotions() -> None:
 # POINT D’ENTRÉE
 # =========================
 if __name__ == "__main__":
-    load_promotions()
+    load_historique_prix_produits()

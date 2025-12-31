@@ -1,8 +1,8 @@
 """
 =========================================
-LOAD COMMANDES - BRONZE LAYER
+LOAD Livraisons detaillees - BRONZE LAYER
 =========================================
-Ce script charge la table commandes depuis la couche RAW (CSV)
+Ce script charge la table livraisons detaillees depuis la couche RAW (CSV)
 vers la couche BRONZE (Parquet) en conservant les données quasi brutes.
 =========================================
 """
@@ -14,8 +14,8 @@ from pyspark.sql.functions import col
 # =========================
 # AJOUT DE src DANS sys.path
 # =========================
-if "/app/src" not in sys.path:
-    sys.path.append("/app/src")
+if "/opt/airflow/src" not in sys.path:
+    sys.path.append("/opt/airflow/src")
 
 # =========================
 # IMPORTS
@@ -26,19 +26,19 @@ from common.paths import raw_table_path, bronze_table_path
 # =========================
 # CONSTANTES
 # =========================
-TABLE_NAME = "fact_commandes"  # correspond au dossier RAW/fact_commandes
+TABLE_NAME = "fact_livraisons_detaillees"  # correspond au dossier RAW/fact_livraisons_detaillees
 
 # =========================
 # FONCTION DE CHARGEMENT
 # =========================
-def load_commandes() -> None:
+def load_livraisons_detaillees() -> None:
     """
-    Charge les données commandes depuis la couche RAW vers la couche BRONZE.
+    Charge les données livraisons detaillees depuis la couche RAW vers la couche BRONZE.
     - Source : CSV
     - Destination : Parquet
     """
 
-    spark = get_spark_session("bronze_load_commandes")
+    spark = get_spark_session("bronze_load_livraisons_detaillees")
 
     raw_path = raw_table_path(TABLE_NAME)
     bronze_path = bronze_table_path(TABLE_NAME)
@@ -74,4 +74,4 @@ def load_commandes() -> None:
 # POINT D’ENTRÉE
 # =========================
 if __name__ == "__main__":
-    load_commandes()
+    load_livraisons_detaillees()

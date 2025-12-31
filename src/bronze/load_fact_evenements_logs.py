@@ -1,8 +1,8 @@
 """
 =========================================
-LOAD Produits_dans_panier - BRONZE LAYER
+LOAD Evenements logs - BRONZE LAYER
 =========================================
-Ce script charge la table Produits dans panier depuis la couche RAW (CSV)
+Ce script charge la table Evenements logs depuis la couche RAW (CSV)
 vers la couche BRONZE (Parquet) en conservant les données quasi brutes.
 =========================================
 """
@@ -14,8 +14,8 @@ from pyspark.sql.functions import col
 # =========================
 # AJOUT DE src DANS sys.path
 # =========================
-if "/app/src" not in sys.path:
-    sys.path.append("/app/src")
+if "/opt/airflow/src" not in sys.path:
+    sys.path.append("/opt/airflow/src")
 
 # =========================
 # IMPORTS
@@ -26,19 +26,19 @@ from common.paths import raw_table_path, bronze_table_path
 # =========================
 # CONSTANTES
 # =========================
-TABLE_NAME = "fact_produits_retournes"  # correspond au dossier RAW/fact_produits_retournes
+TABLE_NAME = "fact_evenements_logs"  # correspond au dossier RAW/fact_evenements_logs
 
 # =========================
 # FONCTION DE CHARGEMENT
 # =========================
-def load_produits_retournes() -> None:
+def load_evenements_logs() -> None:
     """
-    Charge les données produits retournes depuis la couche RAW vers la couche BRONZE.
+    Charge les données evenements logs depuis la couche RAW vers la couche BRONZE.
     - Source : CSV
     - Destination : Parquet
     """
 
-    spark = get_spark_session("bronze_load_produits_retournes")
+    spark = get_spark_session("bronze_load_evenements_logs")
 
     raw_path = raw_table_path(TABLE_NAME)
     bronze_path = bronze_table_path(TABLE_NAME)
@@ -74,4 +74,4 @@ def load_produits_retournes() -> None:
 # POINT D’ENTRÉE
 # =========================
 if __name__ == "__main__":
-    load_produits_retournes()
+    load_evenements_logs()

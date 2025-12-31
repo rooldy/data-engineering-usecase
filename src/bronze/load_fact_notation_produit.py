@@ -1,8 +1,8 @@
 """
 =========================================
-LOAD CLIENTS - BRONZE LAYER
+LOAD Notation Produit - BRONZE LAYER
 =========================================
-Ce script charge la table clients depuis la couche RAW (CSV)
+Ce script charge la table Notation produit depuis la couche RAW (CSV)
 vers la couche BRONZE (Parquet) en conservant les données quasi brutes.
 =========================================
 """
@@ -14,8 +14,8 @@ from pyspark.sql.functions import col
 # =========================
 # AJOUT DE src DANS sys.path
 # =========================
-if "/app/src" not in sys.path:
-    sys.path.append("/app/src")
+if "/opt/airflow/src" not in sys.path:
+    sys.path.append("/opt/airflow/src")
 
 # =========================
 # IMPORTS
@@ -26,19 +26,19 @@ from common.paths import raw_table_path, bronze_table_path
 # =========================
 # CONSTANTES
 # =========================
-TABLE_NAME = "dim_moyens_paiement"  # correspond au dossier RAW/dim_clients
+TABLE_NAME = "fact_notation_produit"  # correspond au dossier RAW/fact_notation_produit
 
 # =========================
 # FONCTION DE CHARGEMENT
 # =========================
-def load_moyens_paiement() -> None:
+def load_notation_produit() -> None:
     """
-    Charge les données moyens paiement depuis la couche RAW vers la couche BRONZE.
+    Charge les données notation produit depuis la couche RAW vers la couche BRONZE.
     - Source : CSV
     - Destination : Parquet
     """
 
-    spark = get_spark_session("bronze_load_moyens_paiement")
+    spark = get_spark_session("bronze_load_notation_produit")
 
     raw_path = raw_table_path(TABLE_NAME)
     bronze_path = bronze_table_path(TABLE_NAME)
@@ -74,4 +74,4 @@ def load_moyens_paiement() -> None:
 # POINT D’ENTRÉE
 # =========================
 if __name__ == "__main__":
-    load_moyens_paiement()
+    load_notation_produit()

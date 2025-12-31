@@ -1,4 +1,4 @@
-from airflow.utils.task_group import TaskGroup
+from airflow.sdk import TaskGroup
 from airflow.providers.apache.spark.operators.spark_submit import SparkSubmitOperator
 
 SPARK_CONF = {
@@ -8,90 +8,74 @@ SPARK_CONF = {
     "spark.sql.shuffle.partitions": "4",
 }
 
-SPARK_APP_PATH = "/app/src/bronze"
+SPARK_APP_PATH = "/opt/airflow/src/bronze"
 
 
-def bronze_taskgroup(dag):
-    with TaskGroup(group_id="bronze_layer", dag=dag) as bronze_layer:
-
-        # =========================
-        # DIMENSIONS
-        # =========================
+def bronze_taskgroup():
+    with TaskGroup(group_id="bronze_layer") as bronze_layer:
 
         load_dim_clients = SparkSubmitOperator(
             task_id="load_dim_clients",
             application=f"{SPARK_APP_PATH}/load_dim_clients.py",
-            conn_id="spark_default",
             conf=SPARK_CONF,
+            conn_id="spark_default",
         )
 
         load_dim_produits = SparkSubmitOperator(
             task_id="load_dim_produits",
             application=f"{SPARK_APP_PATH}/load_dim_produits.py",
-            conn_id="spark_default",
             conf=SPARK_CONF,
+            conn_id="spark_default",
         )
 
         load_dim_fournisseurs = SparkSubmitOperator(
             task_id="load_dim_fournisseurs",
             application=f"{SPARK_APP_PATH}/load_dim_fournisseurs.py",
-            conn_id="spark_default",
             conf=SPARK_CONF,
+            conn_id="spark_default",
         )
 
         load_dim_entrepots = SparkSubmitOperator(
             task_id="load_dim_entrepots",
             application=f"{SPARK_APP_PATH}/load_dim_entrepots.py",
-            conn_id="spark_default",
             conf=SPARK_CONF,
+            conn_id="spark_default",
         )
 
         load_dim_moyens_paiement = SparkSubmitOperator(
             task_id="load_dim_moyens_paiement",
             application=f"{SPARK_APP_PATH}/load_dim_moyens_paiement.py",
-            conn_id="spark_default",
             conf=SPARK_CONF,
+            conn_id="spark_default",
         )
-
-        # =========================
-        # FAITS
-        # =========================
 
         load_fact_commandes = SparkSubmitOperator(
             task_id="load_fact_commandes",
             application=f"{SPARK_APP_PATH}/load_fact_commandes.py",
-            conn_id="spark_default",
             conf=SPARK_CONF,
+            conn_id="spark_default",
         )
 
         load_fact_produits_commandes = SparkSubmitOperator(
             task_id="load_fact_produits_commandes",
             application=f"{SPARK_APP_PATH}/load_fact_produits_commandes.py",
-            conn_id="spark_default",
             conf=SPARK_CONF,
+            conn_id="spark_default",
         )
 
         load_fact_paiements = SparkSubmitOperator(
             task_id="load_fact_paiements",
             application=f"{SPARK_APP_PATH}/load_fact_paiements.py",
-            conn_id="spark_default",
             conf=SPARK_CONF,
+            conn_id="spark_default",
         )
-
-        # =========================
-        # SCD / HISTORIQUE
-        # =========================
 
         load_scd_prix_produits = SparkSubmitOperator(
             task_id="load_scd_prix_produits",
             application=f"{SPARK_APP_PATH}/load_scd_prix_produits.py",
-            conn_id="spark_default",
             conf=SPARK_CONF,
+            conn_id="spark_default",
         )
-
-        # =========================
-        # DÉPENDANCES INTERNES
-        # =========================
 
         (
             [load_dim_clients, load_dim_produits]
